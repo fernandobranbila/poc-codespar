@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `POST /api/v1/collect/pix` creates a dynamic charge returning `charge_id`, `amount_brl`, EMV QR code string, and expiration timestamp.
-- [ ] `POST /api/v1/webhooks/pix-settled` receives simulated or live BACEN settlement webhooks and reconciles order state to `SETTLED`.
-- [ ] `GET /api/v1/collect/charges/{id}` returns the real-time status and payment proof.
-- [ ] Every response explicitly includes the `engine_provenance` header/field.
-- [ ] Works cleanly in CodeSpar free sandbox tier and local fallback.
+- [x] `POST /api/v1/collect/pix` creates a dynamic charge returning `charge_id`, `amount_brl`, EMV QR code string, and expiration timestamp.
+- [x] `POST /api/v1/webhooks/pix-settled` receives simulated or live BACEN settlement webhooks and reconciles order state to `SETTLED`.
+- [x] `GET /api/v1/collect/charges/{id}` returns the real-time status and payment proof.
+- [x] Every response explicitly includes the `engine_provenance` header/field.
+- [x] Works cleanly in CodeSpar free sandbox tier and local fallback.

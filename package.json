@@ -5,7 +5,9 @@
   "main": "src/demo.ts",
   "type": "module",
   "scripts": {
-    "start": "tsx src/demo.ts",
+    "test": "tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "start": "tsx src/server.ts",
     "server": "tsx src/server.ts",
     "demo": "tsx src/demo.ts",
     "demo:autonomous": "tsx src/demo.ts --amount=85",

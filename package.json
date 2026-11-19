@@ -1,0 +1,29 @@
+{
+  "name": "poc-codespar",
+  "version": "1.0.0",
+  "description": "Proof of Concept for Agentic Commerce using CodeSpar infrastructure (Pix, NF-e, Mandates, Approval Queue)",
+  "main": "src/demo.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/demo.ts",
+    "server": "tsx src/server.ts",
+    "demo": "tsx src/demo.ts",
+    "demo:autonomous": "tsx src/demo.ts --amount=85",
+    "demo:stepup": "tsx src/demo.ts --amount=450"
+  },
+  "keywords": [
+    "agentic-commerce",
+    "codespar",
+    "pix",
+    "mcp",
+    "latam-rails",
+    "agent-mandates"
+  ],
+  "author": "Fernando Branbila",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

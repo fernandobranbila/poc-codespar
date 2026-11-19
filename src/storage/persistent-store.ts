@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
-import type { PixCharge, AuditBlock, StoreSchema, EngineProvenance } from '../types.js';
+import type { PixCharge, NFeInvoice, LogisticsShipment, AuditBlock, StoreSchema, EngineProvenance } from '../types.js';
 
 export class PersistentStore {
   private baseDir: string;
@@ -27,13 +27,23 @@ export class PersistentStore {
     if (fs.existsSync(this.storePath)) {
       try {
         const raw = fs.readFileSync(this.storePath, 'utf-8');
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        return {
+          charges: parsed.charges || {},
+          nfe_invoices: parsed.nfe_invoices || {},
+          shipments: parsed.shipments || {},
+          payouts: parsed.payouts || {},
+          approval_queue: parsed.approval_queue || {},
+          x402_proof_tokens: parsed.x402_proof_tokens || []
+        };
       } catch {
         // Fall back to empty store
       }
     }
     const initial: StoreSchema = {
       charges: {},
+      nfe_invoices: {},
+      shipments: {},
       payouts: {},
       approval_queue: {},
       x402_proof_tokens: []
@@ -70,8 +80,22 @@ export class PersistentStore {
     return this.state.charges[chargeId];
   }
 
-  public getAllCharges(): Record<string, PixCharge> {
-    return { ...this.state.charges };
+  public saveNFe(nfe: NFeInvoice): void {
+    this.state.nfe_invoices[nfe.nfeKey] = nfe;
+    this.saveStore(this.state);
+  }
+
+  public getNFe(nfeKey: string): NFeInvoice | undefined {
+    return this.state.nfe_invoices[nfeKey];
+  }
+
+  public saveShipment(shipment: LogisticsShipment): void {
+    this.state.shipments[shipment.shipmentId] = shipment;
+    this.saveStore(this.state);
+  }
+
+  public getShipment(shipmentId: string): LogisticsShipment | undefined {
+    return this.state.shipments[shipmentId];
   }
 
   public getStore(): StoreSchema {

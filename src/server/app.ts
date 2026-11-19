@@ -1,8 +1,32 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import type { CollectService } from '../collect/collect-service.js';
+import type { FiscalService } from '../fiscal/fiscal-service.js';
+import type { LogisticsService } from '../logistics/logistics-service.js';
 import type { PersistentStore } from '../storage/persistent-store.js';
 
-export function createHttpApp(collectService: CollectService, store: PersistentStore) {
+export interface AppDependencies {
+  collectService: CollectService;
+  fiscalService?: FiscalService;
+  logisticsService?: LogisticsService;
+  store: PersistentStore;
+}
+
+export function createHttpApp(depsOrCollect: AppDependencies | CollectService, maybeStore?: PersistentStore) {
+  let collectService: CollectService;
+  let fiscalService: FiscalService | undefined;
+  let logisticsService: LogisticsService | undefined;
+  let store: PersistentStore;
+
+  if ('collectService' in depsOrCollect) {
+    collectService = depsOrCollect.collectService;
+    fiscalService = depsOrCollect.fiscalService;
+    logisticsService = depsOrCollect.logisticsService;
+    store = depsOrCollect.store;
+  } else {
+    collectService = depsOrCollect;
+    store = maybeStore!;
+  }
+
   return async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const method = req.method?.toUpperCase();
@@ -65,11 +89,34 @@ export function createHttpApp(collectService: CollectService, store: PersistentS
         const endToEndId = body.end_to_end_id;
 
         const settled = await collectService.reconcileSettlement(chargeId, endToEndId);
+
+        let fulfillment: any = null;
+        if (body.auto_fulfill && fiscalService && logisticsService) {
+          const nfe = await fiscalService.issueNFe({
+            chargeId: settled.chargeId,
+            buyerName: settled.buyerName,
+            totalBrl: settled.amountBrl
+          });
+
+          const shipment = await logisticsService.createShipment({
+            orderReference: settled.orderReference || settled.chargeId,
+            destinationCity: body.destination_city || 'São Paulo - SP'
+          });
+
+          fulfillment = {
+            nfe_key: nfe.nfeKey,
+            protocol_number: nfe.protocolNumber,
+            tracking_code: shipment.trackingCode,
+            shipment_id: shipment.shipmentId
+          };
+        }
+
         return sendJson(200, {
           status: 'RECONCILED',
           charge_id: settled.chargeId,
           payment_status: settled.status,
-          settled_at: settled.settledAt
+          settled_at: settled.settledAt,
+          fulfillment
         });
       }
 
@@ -83,12 +130,58 @@ export function createHttpApp(collectService: CollectService, store: PersistentS
         return sendJson(200, charge);
       }
 
-      // 4. GET /api/v1/data/store
+      // 4. POST /api/v1/fiscal/nfe/issue
+      if (method === 'POST' && url.pathname === '/api/v1/fiscal/nfe/issue') {
+        if (!fiscalService) {
+          return sendJson(501, { error: 'FiscalService not configured in app' });
+        }
+        const body = await readBody();
+        const nfe = await fiscalService.issueNFe({
+          chargeId: body.charge_id,
+          buyerName: body.buyer_name || 'Customer',
+          buyerTaxId: body.buyer_tax_id,
+          totalBrl: Number(body.total_brl) || 85.00,
+          items: body.items
+        });
+
+        return sendJson(200, {
+          nfe_key: nfe.nfeKey,
+          protocol_number: nfe.protocolNumber,
+          status: nfe.status,
+          total_brl: nfe.totalBrl,
+          danfe_xml_url: nfe.danfeXmlUrl,
+          issued_at: nfe.issuedAt
+        });
+      }
+
+      // 5. POST /api/v1/logistics/shipment
+      if (method === 'POST' && url.pathname === '/api/v1/logistics/shipment') {
+        if (!logisticsService) {
+          return sendJson(501, { error: 'LogisticsService not configured in app' });
+        }
+        const body = await readBody();
+        const shipment = await logisticsService.createShipment({
+          orderReference: body.order_id,
+          destinationCity: body.destination_city || 'São Paulo - SP',
+          destinationPostalCode: body.destination_postal_code,
+          weightKg: Number(body.weight_kg) || 1.0
+        });
+
+        return sendJson(200, {
+          shipment_id: shipment.shipmentId,
+          carrier: shipment.carrier,
+          tracking_code: shipment.trackingCode,
+          status: shipment.status,
+          label_pdf_url: shipment.labelPdfUrl
+        });
+      }
+
+      // 6. GET /api/v1/data/store
       if (method === 'GET' && url.pathname === '/api/v1/data/store') {
         return sendJson(200, store.getStore());
       }
 
-      // 5. GET /api/v1/data/audit-trail
+      // 7. GET /api/v1/data/audit-trail
       if (method === 'GET' && url.pathname === '/api/v1/data/audit-trail') {
         res.writeHead(200, {
           'Content-Type': 'text/plain',

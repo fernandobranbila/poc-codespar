@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
-import type { PixCharge, NFeInvoice, LogisticsShipment, AuditBlock, StoreSchema, EngineProvenance } from '../types.js';
+import type { PixCharge, NFeInvoice, LogisticsShipment, AuditBlock, StoreSchema, EngineProvenance, OutboundPayoutResult, ApprovalQueueItem } from '../types.js';
 
 export class PersistentStore {
   private baseDir: string;
@@ -142,5 +142,36 @@ export class PersistentStore {
       return fs.readFileSync(this.auditPath, 'utf-8');
     }
     return '';
+  }
+
+  public savePayout(payout: OutboundPayoutResult): void {
+    this.state.payouts[payout.payoutId] = payout;
+    this.saveStore(this.state);
+  }
+
+  public getPayout(payoutId: string): OutboundPayoutResult | undefined {
+    return this.state.payouts[payoutId];
+  }
+
+  public saveApprovalQueueItem(item: ApprovalQueueItem): void {
+    this.state.approval_queue[item.queueId] = item;
+    this.saveStore(this.state);
+  }
+
+  public getApprovalQueueItem(queueId: string): ApprovalQueueItem | undefined {
+    return this.state.approval_queue[queueId];
+  }
+
+  public getAllApprovalQueue(): ApprovalQueueItem[] {
+    return Object.values(this.state.approval_queue);
+  }
+
+  public addX402Token(token: string): void {
+    this.state.x402_proof_tokens.push(token);
+    this.saveStore(this.state);
+  }
+
+  public hasX402Token(token: string): boolean {
+    return this.state.x402_proof_tokens.includes(token);
   }
 }

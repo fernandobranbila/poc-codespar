@@ -3,11 +3,15 @@ import type { CollectService } from '../collect/collect-service.js';
 import type { FiscalService } from '../fiscal/fiscal-service.js';
 import type { LogisticsService } from '../logistics/logistics-service.js';
 import type { PersistentStore } from '../storage/persistent-store.js';
+import type { GovernedPayService } from '../pay/governed-pay-service.js';
+import type { X402Service } from '../x402/x402-service.js';
 
 export interface AppDependencies {
   collectService: CollectService;
   fiscalService?: FiscalService;
   logisticsService?: LogisticsService;
+  payService?: GovernedPayService;
+  x402Service?: X402Service;
   store: PersistentStore;
 }
 
@@ -15,12 +19,16 @@ export function createHttpApp(depsOrCollect: AppDependencies | CollectService, m
   let collectService: CollectService;
   let fiscalService: FiscalService | undefined;
   let logisticsService: LogisticsService | undefined;
+  let payService: GovernedPayService | undefined;
+  let x402Service: X402Service | undefined;
   let store: PersistentStore;
 
   if ('collectService' in depsOrCollect) {
     collectService = depsOrCollect.collectService;
     fiscalService = depsOrCollect.fiscalService;
     logisticsService = depsOrCollect.logisticsService;
+    payService = depsOrCollect.payService;
+    x402Service = depsOrCollect.x402Service;
     store = depsOrCollect.store;
   } else {
     collectService = depsOrCollect;
@@ -188,6 +196,110 @@ export function createHttpApp(depsOrCollect: AppDependencies | CollectService, m
           'X-Engine-Provenance': provenance
         });
         return res.end(store.getAuditTrailText());
+      }
+
+      // 8. POST /api/v1/pay/pix-transfer
+      if (method === 'POST' && url.pathname === '/api/v1/pay/pix-transfer') {
+        if (!payService) {
+          return sendJson(501, { error: 'GovernedPayService not configured in app' });
+        }
+        const body = await readBody();
+        const result = await payService.requestPayout({
+          supplierName: body.supplier_name,
+          pixKey: body.pix_key,
+          amountBrl: Number(body.amount_brl),
+          description: body.description
+        });
+
+        if (result.status === 'PENDING_APPROVAL') {
+          return sendJson(202, {
+            payout_id: result.payoutId,
+            queue_id: result.queueId,
+            supplier_name: result.supplierName,
+            amount_brl: result.amountBrl,
+            mandate_mode: result.mandateMode,
+            status: 'ESCALATED_TO_APPROVAL_QUEUE',
+            engine_provenance: result.engineProvenance
+          });
+        }
+
+        return sendJson(200, {
+          payout_id: result.payoutId,
+          supplier_name: result.supplierName,
+          amount_brl: result.amountBrl,
+          mandate_mode: result.mandateMode,
+          status: result.status,
+          settled_at: result.settledAt,
+          engine_provenance: result.engineProvenance
+        });
+      }
+
+      // 9. POST /api/v1/governance/approval-queue/:queueId/sign-off
+      if (method === 'POST' && url.pathname.match(/^\/api\/v1\/governance\/approval-queue\/[^/]+\/sign-off$/)) {
+        if (!payService) {
+          return sendJson(501, { error: 'GovernedPayService not configured in app' });
+        }
+        const queueId = url.pathname.split('/')[5];
+        const body = await readBody();
+        const result = await payService.resolveApprovalQueue(queueId, {
+          action: body.action,
+          managerEmail: body.manager_email,
+          notes: body.notes
+        });
+
+        return sendJson(200, {
+          payout_id: result.payoutId,
+          queue_id: result.queueId,
+          supplier_name: result.supplierName,
+          amount_brl: result.amountBrl,
+          mandate_mode: result.mandateMode,
+          status: result.status,
+          settled_at: result.settledAt,
+          approver_notes: result.approverNotes,
+          engine_provenance: result.engineProvenance
+        });
+      }
+
+      // 10. GET /api/v1/governance/approval-queue
+      if (method === 'GET' && url.pathname === '/api/v1/governance/approval-queue') {
+        const items = store.getAllApprovalQueue();
+        return sendJson(200, { items });
+      }
+
+      // 11. GET /api/v1/a2a/market-quotes (x402 protected)
+      if (method === 'GET' && url.pathname === '/api/v1/a2a/market-quotes') {
+        const proofToken = req.headers['x-payment-proof'] as string | undefined;
+        if (!proofToken || !(x402Service ? x402Service.verifyProof(proofToken) : store.hasX402Token(proofToken))) {
+          const invoice = x402Service
+            ? x402Service.createInvoice(0.001)
+            : { invoiceId: `inv_x402_${Date.now()}_fallback`, costBrl: 0.001, rail: 'x402/pix-brl' };
+          return sendJson(402, {
+            error: 'Payment Required',
+            invoice,
+            instructions: 'POST /api/v1/x402/settle with invoiceId to obtain a payment proof token'
+          });
+        }
+        return sendJson(200, {
+          quotes: [
+            { ticker: 'BTC/BRL', price: 325000.00, change24h: '+2.1%' },
+            { ticker: 'ETH/BRL', price: 18500.00, change24h: '-0.5%' },
+            { ticker: 'SOL/BRL', price: 850.00, change24h: '+5.3%' }
+          ],
+          engine_provenance: provenance
+        });
+      }
+
+      // 12. POST /api/v1/x402/settle
+      if (method === 'POST' && url.pathname === '/api/v1/x402/settle') {
+        if (!x402Service) {
+          return sendJson(501, { error: 'X402Service not configured in app' });
+        }
+        const body = await readBody();
+        const result = x402Service.settleInvoice(body.invoiceId || '', Number(body.amount_brl) || 0.001);
+        return sendJson(200, {
+          status: result.status,
+          payment_proof: result.paymentProof
+        });
       }
 
       // Default 404

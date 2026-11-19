@@ -18,6 +18,19 @@ Latin America—spearheaded by Brazil—presents the world's most mature instant
 * **Fiscal automation (NF-e)** is mandatory by federal law (SEFAZ), requiring immediate tax invoice validation at the moment of sale.
 * **CodeSpar** (`codespar.dev`) is built natively for this reality: it provides an open-source multi-agent runtime and Model Context Protocol (MCP) toolchain that connects AI agents directly to regional payment, fiscal, and logistics rails.
 
+### Competitive Positioning
+
+| Dimension | CodeSpar (This POC) | DIY Custom Banking APIs | US-Centric ACP/UCP Protocols |
+|-----------|--------------------|-----------------------|------------------------------|
+| **LATAM Rail Support** | ✅ Native (Pix, Boleto, SPEI, PSE) | ⚠️ Per-bank custom integration | ❌ Not supported |
+| **NF-e Fiscal Compliance** | ✅ Automated via SEFAZ MCP | ❌ Manual or out-of-scope | ❌ Not applicable |
+| **Agent Mandate Governance** | ✅ Built-in spend limits, whitelist, approval queue | ❌ Must be built from scratch | ⚠️ Partial (card limits only) |
+| **Time to First Transaction** | ✅ Hours (sandbox, free tier) | ❌ Weeks–months (bank onboarding) | ⚠️ Days (US cards only) |
+| **Infrastructure Cost** | ✅ R$ 0 to validate (free sandbox) | ❌ Engineering + bank fees upfront | ⚠️ Monthly platform fees |
+| **Pix Settlement Finality** | ✅ < 3 seconds | ⚠️ Depends on bank SLA | ❌ No Pix support |
+
+---
+
 ### Economic Model & Free Tier Posture
 * **Zero Infrastructure Cost for Exploration**: CodeSpar provides free sandbox testing, free test keys, and free hosted/open-source MCP servers.
 * **Production Pricing Follows Settled Money**:
@@ -117,3 +130,31 @@ In accordance with [ADR-0002](file:///home/fernando/orca/poc-codespar/docs/adr/0
 | 🇨🇱 **Chile** | **Flow.cl** (Webpay, ETpay, Multicaja) | SII DTE (Boleta Electrónica) | `mcp-flow-cl` (HMAC-SHA256 signed) | **Phase 2 (Q1)** |
 | 🇲🇽 **Mexico** | **SPEI** via STP, CoDi | SAT CFDI 4.0 | `mcp-stp-mexico`, `mcp-facturama` | **Phase 3 (Q2)** |
 | 🇨🇴 **Colombia** | **PSE**, Wompi | DIAN Factura Electrónica | `mcp-wompi-colombia` | **Phase 4 (Q3)** |
+
+
+---
+
+## 5. Data Flow: End-to-End Agentic Transaction
+
+> _Section intentionally reserved for sequence diagram (see presentation.html)._
+
+---
+
+## 6. ADR Index
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [ADR-0001](../adr/0001-codespar-agentic-commerce-platform.md) | CodeSpar as Agentic Commerce Platform with Fallback Engine | Accepted |
+| [ADR-0002](../adr/0002-brazil-first-latam-expansion.md) | Brazil-First, LATAM Expansion Strategy | Accepted |
+
+---
+
+## 7. Risk Register & Known Limitations
+
+| # | Risk | Likelihood | Impact | Mitigation |
+|---|------|-----------|--------|-----------|
+| R-01 | **CodeSpar platform risk** — vendor dependency; pricing changes or service discontinuation could break production integrations | Medium | High | The CodeSpar MCP interface is a swappable abstraction layer. Replacing the backend (e.g., switching to a direct Celcoin/Stark Bank integration) requires only re-implementing the MCP tool signatures, not rewriting business logic. |
+| R-02 | **Sandbox vs. production delta** — the fallback simulator mirrors CodeSpar primitives but does not replicate live API latency, rate limits, or SLA guarantees | Low (in POC) / High (in production) | Medium | ADR-0001 mandates explicit `[SANDBOX_FALLBACK_SIMULATOR]` provenance tagging on every receipt and UI badge. Production readiness requires live API regression testing before go-live. |
+| R-03 | **x402 protocol maturity** — the x402 HTTP 402 micropayment protocol is an emerging standard; the specification is not yet finalized by a recognized standards body | Medium | Medium | The POC implementation is built strictly on RFC 7235-compliant HTTP 402 semantics, which are stable. Any x402 schema evolution affects only the payload envelope, not the transport or settlement layer. |
+| R-04 | **LGPD / data residency** — Pix payment data (CPF, CNPJ, bank account identifiers) is subject to Brazil's Lei Geral de Proteção de Dados (LGPD) and BACEN data sovereignty requirements | Medium | High | ⚠️ **Open item for legal review.** The POC stores no PII beyond sandbox test fixtures. Production deployment requires a data residency assessment and DPA agreements with CodeSpar and any sub-processors. |
+| R-05 | **Mandate security** — in sandbox mode, Agent Mandate enforcement (spend limits, whitelist checks, approval escalation) is policy-enforced in application code, not cryptographically signed or attested at the hardware/TEE level | Low (POC) / Medium (production) | Medium | Acceptable for POC demonstration. Production should evaluate cryptographic attestation of mandate payloads (e.g., signed JWTs or hardware-backed keys) before handling real funds. |

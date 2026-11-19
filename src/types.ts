@@ -57,6 +57,39 @@ export interface LogisticsShipment {
   createdAt: string;
 }
 
+export interface AgentMandate {
+  autonomousSpendLimitBrl: number;
+  whitelistedVendors: string[];
+  expirationTtlMinutes?: number;
+}
+
+export interface OutboundPayoutResult {
+  payoutId: string;
+  queueId?: string;
+  supplierName: string;
+  pixKey?: string;
+  amountBrl: number;
+  mandateMode: 'AUTONOMOUS' | 'HUMAN_APPROVAL_QUEUE';
+  status: 'SETTLED' | 'PENDING_APPROVAL' | 'REJECTED_BY_HUMAN';
+  settledAt?: string;
+  approverNotes?: string;
+  engineProvenance: EngineProvenance;
+}
+
+export interface ApprovalQueueItem {
+  queueId: string;
+  supplierName: string;
+  pixKey?: string;
+  amountBrl: number;
+  autonomousLimitBrl: number;
+  description?: string;
+  status: 'PENDING' | 'RESOLVED_APPROVED' | 'RESOLVED_REJECTED';
+  createdAt: string;
+  resolvedAt?: string;
+  managerEmail?: string;
+  approverNotes?: string;
+}
+
 export interface AuditBlock {
   index: number;
   timestamp: string;
@@ -72,7 +105,7 @@ export interface StoreSchema {
   charges: Record<string, PixCharge>;
   nfe_invoices: Record<string, NFeInvoice>;
   shipments: Record<string, LogisticsShipment>;
-  payouts: Record<string, any>;
-  approval_queue: Record<string, any>;
+  payouts: Record<string, OutboundPayoutResult>;
+  approval_queue: Record<string, ApprovalQueueItem>;
   x402_proof_tokens: string[];
 }

@@ -44,6 +44,10 @@ _Avoid_: Paid API, pay-per-call, token gating
 The official Brazilian electronic tax invoice issued automatically upon payment confirmation and validated by SEFAZ.
 _Avoid_: Invoice receipt, bill, fiscal receipt
 
+**Pix**:
+Brazil's instant payment system operated by BACEN (Banco Central do Brasil), processing over 4 billion monthly transactions with sub-3-second finality and near-zero cost. The primary payment rail for Agentic Commerce in this POC.
+_Avoid_: Wire transfer, digital wallet, QR payment
+
 **Free Tier Sandbox**:
 CodeSpar's zero-cost testing environment providing sandbox MCP servers and test keys for end-to-end verification without transaction fees.
 _Avoid_: Trial version, freemium mode
